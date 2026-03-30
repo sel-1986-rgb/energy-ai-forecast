@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Прогноз потребления энергии AI</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #2c3e50; }
+        #results-container { width: 80%; margin: auto; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .metrics { margin-top: 20px; font-weight: bold; }
+        .btn { margin-top: 20px; padding: 10px 20px; background-color: #3498db; color: #fff; border: none; cursor: pointer; }
+        .btn:hover { background-color: #2980b9; }
+        #chart-container { width: 80%; margin: 40px auto; display: none; }
+    </style>
+</head>
+<body>
+    <h1>Прогноз потребления энергии AI</h1>
+
+    <input type="file" id="file-input" accept=".csv,.docx">
+    <button id="predict-btn" class="btn">Прогнозировать</button>
+    <div class="metrics" id="metrics" style="display:none;"></div>
+
+    <div id="results-container" style="display:none;">
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Объем по потреблению э/э, тыс. кВтч</th>
+                    <th>Аномалия</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <button id="export-btn" class="btn" style="display:none;">Экспорт в Excel</button>
+        <button id="chart-btn" class="btn" style="display:none;">Построить график</button>
+    </div>
+
+    <div id="chart-container">
+        <canvas id="forecast-chart"></canvas>
+    </div>
+
+    <script>
+        let currentData = null;
+
+        $('#predict-btn').click(function() {
+            let file = $('#file-input')[0].files[0];
+            if (!file) { alert("Выберите файл!"); return; }
+
+            let formData = new FormData();
+            formData.append('file', file);
+
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    currentData = res;
+
+                    $('#metrics').text(`MAE: ${res.mae.toFixed(4)} | RMSE: ${res.rmse.toFixed(4)}`).show();
+
+                    let tbody = $('#results-table tbody');
+                    tbody.empty();
+                    for (let i = 0; i < res.dates.length; i++) {
+                        let anomalyText = res.anomalies[i] ? 'ДА' : 'НЕТ';
+                        tbody.append(`<tr><td>${res.dates[i]}</td><td>${res.predictions[i].toFixed(2)}</td><td>${anomalyText}</td></tr>`);
+                    }
+
+                    $('#results-container').show();
+                    $('#export-btn').show();
+                    $('#chart-btn').show();
+                },
+                error: function(err) {
+                    alert("Ошибка: " + err.responseJSON.error);
+                }
+            });
+        });
+
+        // Экспорт в Excel
+        $('#export-btn').click(function() {
+            if (!currentData) return;
+
+            $.ajax({
+                url: '/export_excel',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(currentData),
+                xhrFields: { responseType: 'blob' },
+                success: function(blob) {
+                    let link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(blob);
+                    link.download = "forecast.xlsx";
+                    link.click();
+                },
+                error: function() { alert("Ошибка при экспорте Excel"); }
+            });
+        });
+
+        // Построить график
+        $('#chart-btn').click(function() {
+            if (!currentData) return;
+
+            const ctx = document.getElementById('forecast-chart').getContext('2d');
+            const colors = currentData.anomalies.map(a => a ? 'red' : 'blue');
+
+            if (window.forecastChart) window.forecastChart.destroy();
+
+            window.forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: currentData.dates,
+                    datasets: [{
+                        label: 'Прогноз потребления, тыс. кВтч',
+                        data: currentData.predictions,
+                        borderColor: 'blue',
+                        backgroundColor: 'rgba(0,0,255,0.1)',
+                        fill: true,
+                        pointBackgroundColor: colors,
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Дата' } },
+                        y: { title: { display: true, text: 'Объем по потреблению э/э, тыс. кВтч' } }
+                    }
+                }
+            });
+
+            $('#chart-container').show();
+            $('html, body').animate({ scrollTop: $('#chart-container').offset().top }, 500);
+        });
+    </script>
+</body>
+</html>
