@@ -5,4 +5,4 @@ scikit-learn
 tensorflow
 python-docx
 openpyxl
-matplotlib
+plotly
