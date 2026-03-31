@@ -3,7 +3,7 @@ import numpy as np
 import math
 import gradio as gr
 import plotly.graph_objects as go
-
+import tempfile
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import MinMaxScaler
@@ -120,10 +120,15 @@ def export_excel(dates, preds):
         "Prediction": preds
     })
 
-    file_path = "forecast.xlsx"
-    df.to_excel(file_path, index=False)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    df.to_excel(tmp.name, index=False)
 
-    return file_path
+    return tmp.name
+
+def export(dates, preds):
+    if dates is None or preds is None:
+        return None
+    return export_excel(dates, preds)
 
 
 # ------------------- MAIN FUNCTION -------------------
@@ -189,22 +194,28 @@ with gr.Blocks() as demo:
     metrics = gr.Textbox()
     chart = gr.Plot()
 
-    download_file = gr.File()
-
+    # ✅ СНАЧАЛА state!
     state_dates = gr.State()
     state_preds = gr.State()
 
+    # ✅ download компонент
+    download_file = gr.File(label="Download Excel")
+
+    # ---------------- RUN ----------------
     def run(file):
         return run_model(file)
-
-    def export(dates, preds):
-        return export_excel(dates, preds)
 
     run_btn.click(
         run,
         inputs=file_input,
         outputs=[table, metrics, chart, state_dates, state_preds]
     )
+
+    # ---------------- EXPORT ----------------
+    def export(dates, preds):
+        if dates is None or preds is None:
+            return None
+        return export_excel(dates, preds)
 
     export_btn.click(
         export,
