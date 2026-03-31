@@ -9,7 +9,8 @@ from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from docx import Document
-
+model = None
+scaler = None
 
 # ------------------- Обработка Word -------------------
 def docx_to_dataframe(file):
@@ -31,8 +32,6 @@ def docx_to_dataframe(file):
         df['consumption'] = df['consumption'].astype(float)
 
     return df
-
-
 # ------------------- Чистка DataFrame -------------------
 def clean_dataframe(df):
     df = df.loc[:, ~df.columns.duplicated()]
@@ -45,8 +44,6 @@ def clean_dataframe(df):
 
     df = df.rename(columns=rename_map)
     return df
-
-
 # ------------------- Создание последовательностей -------------------
 def create_sequences(data, seq_length=12):
     x, y = [], []
@@ -54,16 +51,17 @@ def create_sequences(data, seq_length=12):
         x.append(data[i:i + seq_length])
         y.append(data[i + seq_length])
     return np.array(x), np.array(y)
-
-
 # ------------------- Тренировка LSTM и прогноз -------------------
 def train_and_predict(df):
+    global model, scaler
+
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     df = df.sort_values('date')
     df = df.dropna(subset=['date', 'consumption'])
 
-    scaler = MinMaxScaler()
-    scaled = scaler.fit_transform(df[['consumption']])
+    # scaler ONLY ONCE per file (но не глобально пересоздаём модель)
+    scaler_local = MinMaxScaler()
+    scaled = scaler_local.fit_transform(df[['consumption']])
 
     X, y = create_sequences(scaled, seq_length=12)
     X = X.reshape((X.shape[0], X.shape[1], 1))
@@ -72,11 +70,14 @@ def train_and_predict(df):
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
-    model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(X.shape[1], X.shape[2])))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X_train, y_train, epochs=50, batch_size=1, verbose=0)
+    # 🔥 MODEL: train ONLY ONCE per HF runtime
+    if model is None:
+        model = Sequential()
+        model.add(LSTM(50, activation='relu', input_shape=(X.shape[1], X.shape[2])))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss='mse')
+
+        model.fit(X_train, y_train, epochs=5, batch_size=1, verbose=0)
 
     y_pred = model.predict(X_test, verbose=0)
 
@@ -99,7 +100,7 @@ def train_and_predict(df):
         freq='MS'
     )
 
-    preds = scaler.inverse_transform(
+    preds = scaler_local.inverse_transform(
         np.array(preds_scaled).reshape(-1, 1)
     ).flatten()
 
@@ -109,8 +110,6 @@ def train_and_predict(df):
         mae,
         rmse
     )
-
-
 # ------------------- Аномалии -------------------
 def detect_anomalies(preds, threshold=0.2):
     anomalies = [False]
@@ -120,7 +119,6 @@ def detect_anomalies(preds, threshold=0.2):
         anomalies.append(change > threshold)
 
     return [bool(a) for a in anomalies]
-
 
 # ------------------- GRADIO LOGIC -------------------
 def run_model(file):
@@ -149,8 +147,6 @@ def run_model(file):
     })
 
     return result_df, f"MAE: {mae:.4f}, RMSE: {rmse:.4f}"
-
-
 # ------------------- UI -------------------
 demo = gr.Interface(
     fn=run_model,
@@ -158,5 +154,4 @@ demo = gr.Interface(
     outputs=[gr.Dataframe(), gr.Textbox()],
     title="Energy AI Forecast ⚡"
 )
-
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860)
