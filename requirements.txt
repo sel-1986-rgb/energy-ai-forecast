@@ -1,8 +1,8 @@
-flask
+gradio
 pandas
 numpy
 scikit-learn
 tensorflow
 python-docx
 openpyxl
-gunicorn
+matplotlib

@@ -3,6 +3,7 @@ import numpy as np
 import math
 import os
 import gradio as gr
+import matplotlib.pyplot as plt
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
@@ -146,12 +147,37 @@ def run_model(file):
         "anomaly": anomalies
     })
 
-    return result_df, f"MAE: {mae:.4f}, RMSE: {rmse:.4f}"
+    # 🔥 ГРАФИК
+    plt.figure(figsize=(10, 5))
+
+    plt.plot(dates, preds, label="Forecast", linewidth=2)
+
+    anomaly_dates = [dates[i] for i in range(len(dates)) if anomalies[i]]
+    anomaly_values = [preds[i] for i in range(len(dates)) if anomalies[i]]
+
+    plt.scatter(
+        anomaly_dates,
+        anomaly_values,
+        color="red",
+        label="Anomaly",
+        s=60
+    )
+
+    plt.xticks(rotation=45)
+    plt.title("Прогноз потребления энергии")
+    plt.xlabel("Дата")
+    plt.ylabel("Потребление")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    return result_df, f"MAE: {mae:.4f}, RMSE: {rmse:.4f}", plt
+
 # ------------------- UI -------------------
 demo = gr.Interface(
     fn=run_model,
     inputs=gr.File(),
-    outputs=[gr.Dataframe(), gr.Textbox()],
+    outputs=[gr.Dataframe(), gr.Textbox(), gr.Plot()],
     title="Energy AI Forecast ⚡"
 )
 demo.launch(server_name="0.0.0.0", server_port=7860)
