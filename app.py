@@ -171,10 +171,10 @@ def run_model(file):
     ))
 
     fig.update_layout(
-        title="Energy Consumption Forecast",
+        title="Прогноз потребления Электроэнергии",
         template="plotly_dark",
-        xaxis_title="Date",
-        yaxis_title="Consumption"
+        xaxis_title="Дата",
+        yaxis_title="Потребление"
     )
 
     return result_df, f"MAE: {mae:.4f}, RMSE: {rmse:.4f}", fig, dates, preds
@@ -187,8 +187,8 @@ with gr.Blocks() as demo:
 
     file_input = gr.File(label="Upload CSV or DOCX")
 
-    run_btn = gr.Button("Run 🚀")
-    export_btn = gr.Button("Export Excel 📥")
+    run_btn = gr.Button("Прогнозировать")
+    export_btn = gr.Button("Экспортировать в  Excel 📥")
 
     table = gr.Dataframe()
     metrics = gr.Textbox()
