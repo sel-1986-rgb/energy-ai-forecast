@@ -3,9 +3,7 @@ title: energy-ai-forecast
 emoji: ⚡
 colorFrom: blue
 colorTo: green
-sdk: streamlit
-sdk_version: "1.32.0"
-python_version: "3.10"
+sdk: gradio
 app_file: app.py
 pinned: false
 ---
